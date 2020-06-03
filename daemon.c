@@ -6,15 +6,20 @@
 #include <sys/stat.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <semaphore.h>
+#include <string.h>
+#include <pthread.h>
 
 
-int flag = 0;
+int sig_flag = 0;
 int exit_flag = 0;
+int child_flag = 0;
+sem_t sem;
 
 void sigint_handler(int signum)
 {
-        flag = signum;
-        printf("It's daemon handler.\n");
+        sig_flag = signum;
+        //printf("It's daemon handler.\n");
 }
 
 void sigterm_handler(int signum)
@@ -22,38 +27,118 @@ void sigterm_handler(int signum)
 	exit_flag = 1;	
 }
 
+void sigchld_handler(int signum)
+{
+	child_flag = 1;
+}
+
+void writeLog(char *text)
+{
+	int ld = open("log.txt", O_CREAT|O_APPEND|O_RDWR, S_IRWXU);
+	write(ld, text, strlen(text));
+	close(ld);
+}
+
+void execute(char **com)
+{
+	int fd_out = open("output.txt", O_CREAT|O_APPEND|O_RDWR, S_IRWXU);
+	dup2(fd_out, 1);		
+	close(fd_out);
+	execv(com[0], com);
+}
+
 int Daemon(char *argv[])
 {
-        int tmp;
-	signal(SIGINT, sigint_handler);
-	signal(SIGTERM, sigterm_handler);//sig 15
-        //tmp = pause();
-       	
-	int fd, count;
-	char buf[256] = "";
-	pid_t par_pid;
-	fd = open(argv[1], O_RDWR, S_IRWXU);
-	count = read(fd,buf, sizeof(buf));
-	buf[count-2] = '\0';
-	close(1);
-	dup2(fd, 1);
-	//lseek(fd, 0, SEEK_END);
-	//close(fd);
-	while(exit_flag!=1){
-		tmp = pause();
-		if (flag == 2){
-			if((par_pid = fork()) == 0)
-				execve(buf, argv + 1, NULL);
-			//printf("Wrote : %s\n", buf);
-			flag = 0;
-			//tmp = pause();
-			//exit(0);
-		}
 	
-        }
-	close(fd);
-	return 0;
-
+		
+	if(sem_init(&sem, 0, 1) == -1)
+	{
+		writeLog("Semaphore initialization error\n");
+		exit(1);
+	}
+        int tmp;
+	signal(SIGINT, sigint_handler); //sig 2
+	signal(SIGTERM, sigterm_handler);//sig 15
+	signal(SIGCHLD, sigchld_handler);
+        
+	int fd_input = open(argv[1], O_RDWR, S_IRWXU);
+	
+	while(!exit_flag)
+	{
+		int tmp = pause();
+		if(sig_flag == 2){
+			writeLog("Daemon got signal 2(sigint)\n");
+			int count;
+			char buf[65535] = "";
+			count = read(fd_input, buf, sizeof(buf));
+			
+			//char* delimiter = "\n";
+			char* current = strtok(buf, "\n");
+			char *programs[255];
+			int progs_size = 0;
+			do{
+				programs[progs_size] = current;
+				programs[progs_size][strlen(current)] = '\0';
+				progs_size++;
+			}while((current=strtok(NULL, "\n")) != NULL);
+			programs[progs_size] = NULL;
+				
+			for(int i = 0; i < progs_size; i++)
+			{
+				pid_t par_pid;
+				if ((par_pid = fork()) == 0)
+				{
+					char *line[255];
+					int length = 0;
+					char* arg;
+					//char *delimiter2 = " ";
+					
+					arg = strtok(programs[i], " ");
+					do{
+						line[length] = arg;
+						line[length][strlen(arg)]='\0';				
+						length++;
+					}while((arg=strtok(NULL, " ")) != NULL);
+					line[length] = NULL;					
+						
+					if(sem_wait(&sem) == -1)
+						writeLog("Error at semaphore decrement operation\n");	
+					else
+					{
+						char msg[255] = "Command execution completed(";
+						strcat(msg, line[0]);
+						strcat(msg, ")\n");
+						writeLog(msg);
+						execute(line);
+					}
+					 
+				}
+				else if (par_pid > 0)
+				{
+					while (1)
+					{
+						pause();
+						if (child_flag)
+						{
+							waitpid(-1, NULL, 0);
+							sem_post(&sem);
+							child_flag = 0;
+							break;
+						}
+					}
+				}
+				else 
+				{
+					writeLog("Fork error\n");
+				}
+			}
+			sig_flag = 0;
+		}
+	}
+	close(fd_input);
+	sem_destroy(&sem);
+	writeLog("Daemon stopped working\n");
+	exit(0);
 }
 
 int main(int argc, char *argv[])

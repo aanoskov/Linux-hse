@@ -1,0 +1,3 @@
+/bin/ps
+/bin/ps aux -H
+/bin/ps -o pid,ppid,uid,cmd -H

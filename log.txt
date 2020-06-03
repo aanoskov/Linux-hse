@@ -1,0 +1,32 @@
+aemon stopped working
+Daemon got signal 2(sigint)
+Command execution completed
+Command execution completed
+Command execution completed
+Daemon got signal 2(sigint)
+Daemon got signal 2(sigint)
+Daemon got signal 2(sigint)
+Daemon got signal 2(sigint)
+Daemon got signal 2(sigint)
+Command execution completed
+Command execution completed
+Command execution completed
+Daemon stopped working
+Daemon stopped working
+Daemon stopped working
+Daemon stopped working
+
+Daemon got signal 2(sigint)
+Command execution completed(/bin)
+Command execution completed(/bin)
+Command execution completed(/bin)
+Daemon stopped working
+Daemon stopped working
+Daemon stopped working
+Daemon stopped working
+Daemon stopped working
+Daemon got signal 2(sigint)
+Command execution completed(/bin/ps)
+Command execution completed(/bin/ps)
+Command execution completed(/bin/ps)
+Daemon stopped working

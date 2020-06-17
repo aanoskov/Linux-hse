@@ -63,7 +63,7 @@ int Daemon(char *argv[])
 	}
 		
 	sem = mmap(NULL, sizeof(sem_t), PROT_READ|PROT_WRITE, MAP_SHARED, shmem, 0);
-	if(sem_init(sem, 0, 1) == -1)
+	if(sem_init(sem, 1, 1) == -1)
 	{
 		writeLog("Semaphore initialization error\n");
 		exit(1);

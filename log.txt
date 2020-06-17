@@ -1,0 +1,8 @@
+
+Daemon stopped working
+Daemon stopped working
+Daemon got signal 2(sigint)
+Command execution completed(/bin/ps)
+Command execution completed(/bin/ps)
+Command execution completed(/bin/ps)
+Daemon stopped working

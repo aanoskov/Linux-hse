@@ -9,12 +9,12 @@
 #include <semaphore.h>
 #include <string.h>
 #include <pthread.h>
-
+#include <sys/mman.h>
 
 int sig_flag = 0;
 int exit_flag = 0;
 int child_flag = 0;
-sem_t sem;
+sem_t *sem;
 
 void sigint_handler(int signum)
 {
@@ -49,9 +49,21 @@ void execute(char **com)
 
 int Daemon(char *argv[])
 {
-	
+	int shmem;
+	if ((shmem = shm_open("newshm", O_CREAT|O_RDWR, S_IRWXU)) == -1)
+	{
+		writeLog("Shared memory object creation error\n");
+		exit(1);
+	}
+
+	if (ftruncate(shmem, sizeof(sem_t)) < 0)
+	{
+		writeLog("ftruncate error\n");
+		exit(1);
+	}
 		
-	if(sem_init(&sem, 0, 1) == -1)
+	sem = mmap(NULL, sizeof(sem_t), PROT_READ|PROT_WRITE, MAP_SHARED, shmem, 0);
+	if(sem_init(sem, 0, 1) == -1)
 	{
 		writeLog("Semaphore initialization error\n");
 		exit(1);
@@ -61,7 +73,7 @@ int Daemon(char *argv[])
 	signal(SIGTERM, sigterm_handler);//sig 15
 	signal(SIGCHLD, sigchld_handler);
         
-	int fd_input = open(argv[1], O_RDWR, S_IRWXU);
+	
 	
 	while(!exit_flag)
 	{
@@ -70,6 +82,7 @@ int Daemon(char *argv[])
 			writeLog("Daemon got signal 2(sigint)\n");
 			int count;
 			char buf[65535] = "";
+			int fd_input = open(argv[1], O_RDWR, S_IRWXU);
 			count = read(fd_input, buf, sizeof(buf));
 			
 			//char* delimiter = "\n";
@@ -101,7 +114,7 @@ int Daemon(char *argv[])
 					}while((arg=strtok(NULL, " ")) != NULL);
 					line[length] = NULL;					
 						
-					if(sem_wait(&sem) == -1)
+					if(sem_wait(sem) == -1)
 						writeLog("Error at semaphore decrement operation\n");	
 					else
 					{
@@ -118,10 +131,11 @@ int Daemon(char *argv[])
 					while (1)
 					{
 						pause();
+
 						if (child_flag)
 						{
 							waitpid(-1, NULL, 0);
-							sem_post(&sem);
+							sem_post(sem);
 							child_flag = 0;
 							break;
 						}
@@ -132,11 +146,13 @@ int Daemon(char *argv[])
 					writeLog("Fork error\n");
 				}
 			}
+			close(fd_input);
 			sig_flag = 0;
 		}
 	}
-	close(fd_input);
-	sem_destroy(&sem);
+	//close(fd_input);
+	shm_unlink("newshm");
+	sem_destroy(sem);
 	writeLog("Daemon stopped working\n");
 	exit(0);
 }
